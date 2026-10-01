@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Weather App</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* カスタムスクロールバー非表示設定 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen font-sans antialiased">
+    <div id="app" class="max-w-4xl mx-auto px-4 py-6 md:py-10">
+
+        <!-- アプリケーションヘッダー -->
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-3xl select-none" aria-hidden="true">🌤️</span>
+                <h1 class="text-2xl font-bold text-slate-800">Simple Weather App</h1>
+            </div>
+            
+            <!-- 温度単位切り替え（摂氏 / 華氏） -->
+            <div class="flex items-center bg-slate-200 p-1 rounded-lg border border-slate-300">
+                <button 
+                    id="btn-unit-c" 
+                    type="button"
+                    class="px-3 py-1 rounded-md text-sm font-semibold transition-all bg-white text-slate-800 shadow-sm"
+                    aria-label="摂氏（°C）表記に切り替え"
+                >
+                    °C
+                </button>
+                <button 
+                    id="btn-unit-f" 
+                    type="button"
+                    class="px-3 py-1 rounded-md text-sm font-semibold transition-all text-slate-600 hover:text-slate-900"
+                    aria-label="華氏（°F）表記に切り替え"
+                >
+                    °F
+                </button>
+            </div>
+        </header>
+
+        <!-- 都市名検索フォーム -->
+        <section class="mb-4" aria-label="都市検索">
+            <form id="search-form" class="flex gap-2">
+                <div class="relative flex-1">
+                    <input 
+                        type="text" 
+                        id="search-input"
+                        placeholder="都市名を入力... (例: 東京都, 大阪市, 那覇市)" 
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-base"
+                        required
+                    />
+                </div>
+                <button 
+                    type="submit" 
+                    id="search-button"
+                    class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 shrink-0 disabled:bg-slate-400 disabled:cursor-not-allowed"
+                >
+                    <span>検索</span>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </button>
+            </form>
+            
+            <!-- 動的通知・エラーメッセージエリア -->
+            <div id="error-message" class="hidden mt-2 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm" role="alert"></div>
+        </section>
+
+        <!-- お気に入り都市エリア -->
+        <section class="mb-6 flex flex-wrap items-center gap-2 text-sm" aria-label="お気に入り都市">
+            <span class="text-slate-500 font-medium">お気に入り:</span>
+            <div id="favorites-list" class="flex flex-wrap gap-2 items-center">
+                <!-- JavaScriptで動的描画 -->
+            </div>
+            <button 
+                id="btn-toggle-favorite" 
+                type="button"
+                class="hidden ml-auto text-xs px-3 py-1.5 rounded-full border border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 font-medium transition-colors items-center gap-1"
+            >
+                <span id="fav-star-icon" aria-hidden="true">★</span>
+                <span id="fav-btn-text">お気に入りに追加</span>
+            </button>
+        </section>
+
+        <!-- メインコンテンツ表示領域 -->
+        <main id="weather-container" class="space-y-6">
+
+            <!-- ローディングインジケータ -->
+            <div id="loading-spinner" class="py-20 flex flex-col items-center justify-center gap-3">
+                <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-slate-500 font-medium">天気情報を取得中...</p>
+            </div>
+
+            <!-- 天気情報コンテンツ（データロード後表示） -->
+            <div id="weather-content" class="hidden space-y-6">
+
+                <!-- メイン天気情報カード -->
+                <article class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 md:p-8 text-white shadow-lg relative overflow-hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
+                        <div>
+                            <h2 id="city-name" class="text-3xl md:text-4xl font-bold mb-1">那覇市</h2>
+                            <p id="city-address" class="text-blue-100 text-xs md:text-sm mb-1 opacity-90">沖縄県那覇市</p>
+                            <p id="current-date" class="text-blue-100 text-sm md:text-base">----年--月--日(--)</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div id="weather-icon" class="text-6xl md:text-7xl select-none" aria-hidden="true">☀️</div>
+                            <div>
+                                <p id="weather-text" class="text-xl md:text-2xl font-semibold">晴れ</p>
+                                <p class="text-blue-100 text-xs md:text-sm">体感温度: <span id="feels-like-temp">--</span>°</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 flex flex-wrap items-baseline gap-4 relative z-10">
+                        <span id="current-temp" class="text-6xl md:text-7xl font-extrabold tracking-tight">--</span>
+                        <span id="current-unit-symbol" class="text-2xl md:text-3xl font-light text-blue-200">°C</span>
+                        <div class="ml-auto text-right text-sm md:text-base text-blue-100">
+                            <span>最高: <strong id="temp-max" class="text-white">--</strong>°</span>
+                            <span class="mx-1">/</span>
+                            <span>最低: <strong id="temp-min" class="text-white">--</strong>°</span>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- 気象詳細グリッド -->
+                <section class="grid grid-cols-2 gap-4" aria-label="気象詳細">
+                    <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="p-3 bg-blue-50 rounded-xl text-blue-600 text-2xl select-none" aria-hidden="true">💧</div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">湿度</p>
+                            <p id="humidity" class="text-xl md:text-2xl font-bold text-slate-800">-- %</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="p-3 bg-teal-50 rounded-xl text-teal-600 text-2xl select-none" aria-hidden="true">💨</div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">風速</p>
+                            <p id="wind-speed" class="text-xl md:text-2xl font-bold text-slate-800">-- m/s</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7日間天気予報 -->
+                <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm" aria-label="7日間の天気予報">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">7日間の天気予報</h3>
+                    <div id="forecast-list" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                        <!-- JavaScriptで動的生成 -->
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        /**
+         * Simple Weather App - クリーンリファクタリング版
+         * 仕様: weather_app_design_spec.md に準拠
+         */
+
+        // --- 1. 定数・設定値 ---
+        const CONFIG = {
+            DEFAULT_CITY: {
+                name: "那覇市",
+                address: "沖縄県那覇市",
+                latitude: 26.2124,
+                longitude: 127.6809
+            },
+            MAX_FAVORITES: 5,
+            STORAGE_KEYS: {
+                FAVORITES: "simple_weather_favorites",
+                UNIT: "simple_weather_unit"
+            }
+        };
+
+        // WMO Weather Interpretation Codes (コードマッピング)
+        const WEATHER_CODE_MAP = Object.freeze({
+            0:  { label: "晴れ", icon: "☀️" },
+            1:  { label: "ほぼ晴れ", icon: "🌤️" },
+            2:  { label: "一部曇り", icon: "⛅" },
+            3:  { label: "曇り", icon: "☁️" },
+            45: { label: "霧", icon: "🌫️" },
+            48: { label: "着氷霧", icon: "🌫️" },
+            51: { label: "薄い霧雨", icon: "🌧️" },
+            53: { label: "霧雨", icon: "🌧️" },
+            55: { label: "濃い霧雨", icon: "🌧️" },
+            61: { label: "小雨", icon: "🌧️" },
+            63: { label: "雨", icon: "🌧️" },
+            65: { label: "強い雨", icon: "🌧️" },
+            71: { label: "弱降雪", icon: "❄️" },
+            73: { label: "降雪", icon: "❄️" },
+            75: { label: "強い降雪", icon: "❄️" },
+            80: { label: "にわか雨", icon: "🌦️" },
+            81: { label: "強いにわか雨", icon: "🌦️" },
+            82: { label: "激しいにわか雨", icon: "🌧️" },
+            95: { label: "雷雨", icon: "🌩️" },
+            96: { label: "ひょうを伴う雷雨", icon: "🌩️" },
+            99: { label: "激しいひょうを伴う雷雨", icon: "🌩️" }
+        });
+
+        // --- 2. アプリケーション状態 (State) ---
+        const state = {
+            currentCity: { ...CONFIG.DEFAULT_CITY },
+            weatherData: null,
+            favorites: [],
+            unit: 'C', // 'C' または 'F'
+            isLoading: false,
+            errorMessage: null
+        };
+
+        // --- 3. DOM要素キャッシング ---
+        const elements = {
+            searchInput: document.getElementById("search-input"),
+            searchForm: document.getElementById("search-form"),
+            searchButton: document.getElementById("search-button"),
+            errorMessage: document.getElementById("error-message"),
+            loadingSpinner: document.getElementById("loading-spinner"),
+            weatherContent: document.getElementById("weather-content"),
+            cityName: document.getElementById("city-name"),
+            cityAddress: document.getElementById("city-address"),
+            currentDate: document.getElementById("current-date"),
+            weatherIcon: document.getElementById("weather-icon"),
+            weatherText: document.getElementById("weather-text"),
+            currentTemp: document.getElementById("current-temp"),
+            currentUnitSymbol: document.getElementById("current-unit-symbol"),
+            feelsLikeTemp: document.getElementById("feels-like-temp"),
+            tempMax: document.getElementById("temp-max"),
+            tempMin: document.getElementById("temp-min"),
+            humidity: document.getElementById("humidity"),
+            windSpeed: document.getElementById("wind-speed"),
+            forecastList: document.getElementById("forecast-list"),
+            favoritesList: document.getElementById("favorites-list"),
+            btnToggleFavorite: document.getElementById("btn-toggle-favorite"),
+            favStarIcon: document.getElementById("fav-star-icon"),
+            favBtnText: document.getElementById("fav-btn-text"),
+            btnUnitC: document.getElementById("btn-unit-c"),
+            btnUnitF: document.getElementById("btn-unit-f")
+        };
+
+        // --- 4. 純粋ユーティリティ関数 ---
+
+        /**
+         * 摂氏から設定単位（℃/℉）への変換
+         */
+        function convertTemp(celsius, unit) {
+            if (typeof celsius !== 'number') return '--';
+            if (unit === 'F') {
+                return Math.round((celsius * 9 / 5) + 32);
+            }
+            return Math.round(celsius);
+        }
+
+        /**
+         * WMO天気コードからテキストおよびアイコンを取得
+         */
+        function getWeatherMeta(code) {
+            return WEATHER_CODE_MAP[code] || { label: "不明", icon: "❓" };
+        }
+
+        /**
+         * YYYY-MM-DD 文字列を日本語日付表記にフォーマット
+         */
+        function formatDateString(dateStr) {
+            const date = new Date(dateStr + "T00:00:00");
+            const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const dayOfWeek = dayNames[date.getDay()];
+            return {
+                full: `${date.getFullYear()}年${month}月${day}日(${dayOfWeek})`,
+                short: `${month}/${day}(${dayOfWeek})`
+            };
+        }
+
+        // --- 5. ストレージアクセサー ---
+
+        function loadStorageData() {
+            try {
+                const favs = localStorage.getItem(CONFIG.STORAGE_KEYS.FAVORITES);
+                if (favs) {
+                    state.favorites = JSON.parse(favs);
+                }
+                const savedUnit = localStorage.getItem(CONFIG.STORAGE_KEYS.UNIT);
+                if (savedUnit === 'C' || savedUnit === 'F') {
+                    state.unit = savedUnit;
+                }
+            } catch (e) {
+                console.warn("LocalStorageの読み込みに失敗しました:", e);
+            }
+        }
+
+        function saveFavorites() {
+            try {
+                localStorage.setItem(CONFIG.STORAGE_KEYS.FAVORITES, JSON.stringify(state.favorites));
+            } catch (e) {
+                console.warn("お気に入りの保存に失敗しました:", e);
+            }
+        }
+
+        function saveUnitPreference() {
+            try {
+                localStorage.setItem(CONFIG.STORAGE_KEYS.UNIT, state.unit);
+            } catch (e) {
+                console.warn("単位設定の保存に失敗しました:", e);
+            }
+        }
+
+        // --- 6. API 通信層 ---
+
+        /**
+         * Nominatim API: 都市名から緯度・経度・詳細住所を取得
+         */
+        async function fetchCoordinates(cityName) {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName)}&format=json&limit=1&accept-language=ja`;
+            const response = await fetch(url, {
+                headers: {
+                    "User-Agent": "SimpleWeatherApp/1.0 (contact@example.com)"
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error("位置情報サービスの通信に失敗しました。");
+            }
+
+            const data = await response.json();
+            if (!data || data.length === 0) {
+                throw new Error(`「${cityName}」が見つかりませんでした。正しい都市名を入力してください。`);
+            }
+
+            const rawName = data[0].display_name.split(",")[0].trim();
+            const fullAddress = data[0].display_name;
+            return {
+                name: rawName || cityName,
+                address: fullAddress,
+                latitude: parseFloat(data[0].lat),
+                longitude: parseFloat(data[0].lon)
+            };
+        }
+
+        /**
+         * Open-Meteo API: 天気予報データを一括取得
+         */
+        async function fetchWeatherData(lat, lon) {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                throw new Error("気象データの取得に失敗しました。時間をおいて再試行してください。");
+            }
+
+            const data = await response.json();
+            return {
+                current: {
+                    temp: data.current.temperature_2m,
+                    feelsLike: data.current.apparent_temperature,
+                    humidity: data.current.relative_humidity_2m,
+                    windSpeed: data.current.wind_speed_10m,
+                    weatherCode: data.current.weather_code,
+                    tempMax: data.daily.temperature_2m_max[0],
+                    tempMin: data.daily.temperature_2m_min[0]
+                },
+                daily: data.daily.time.map((timeStr, index) => ({
+                    date: timeStr,
+                    tempMax: data.daily.temperature_2m_max[index],
+                    tempMin: data.daily.temperature_2m_min[index],
+                    weatherCode: data.daily.weather_code[index]
+                }))
+            };
+        }
+
+        // --- 7. コア業務ロジック ---
+
+        async function loadWeatherForCity(cityObj) {
+            state.isLoading = true;
+            state.errorMessage = null;
+            renderUI();
+
+            try {
+                const weatherData = await fetchWeatherData(cityObj.latitude, cityObj.longitude);
+                state.currentCity = cityObj;
+                state.weatherData = weatherData;
+            } catch (err) {
+                state.errorMessage = err.message || "データ取得中にエラーが発生しました。";
+            } finally {
+                state.isLoading = false;
+                renderUI();
+            }
+        }
+
+        async function handleSearch(cityName) {
+            if (!cityName.trim()) return;
+            
+            state.isLoading = true;
+            state.errorMessage = null;
+            renderUI();
+
+            try {
+                const cityObj = await fetchCoordinates(cityName);
+                await loadWeatherForCity(cityObj);
+            } catch (err) {
+                state.errorMessage = err.message || "検索処理中にエラーが発生しました。";
+                state.isLoading = false;
+                renderUI();
+            }
+        }
+
+        // --- 8. UI描画・レンダリング ---
+
+        function renderUI() {
+            // エラー表示処理
+            if (state.errorMessage) {
+                elements.errorMessage.textContent = state.errorMessage;
+                elements.errorMessage.classList.remove("hidden");
+            } else {
+                elements.errorMessage.classList.add("hidden");
+            }
+
+            // ローディング状態の制御
+            if (state.isLoading) {
+                elements.loadingSpinner.classList.remove("hidden");
+                elements.weatherContent.classList.add("hidden");
+                elements.searchButton.disabled = true;
+                return;
+            } else {
+                elements.loadingSpinner.classList.add("hidden");
+                elements.searchButton.disabled = false;
+            }
+
+            if (!state.weatherData) return;
+
+            elements.weatherContent.classList.remove("hidden");
+
+            // メイン天気カード描画
+            const { currentCity, weatherData, unit } = state;
+            const current = weatherData.current;
+            const weatherMeta = getWeatherMeta(current.weatherCode);
+
+            elements.cityName.textContent = currentCity.name;
+            elements.cityAddress.textContent = currentCity.address || "";
+            elements.currentDate.textContent = formatDateString(weatherData.daily[0].date).full;
+            elements.weatherIcon.textContent = weatherMeta.icon;
+            elements.weatherText.textContent = weatherMeta.label;
+
+            elements.currentTemp.textContent = convertTemp(current.temp, unit);
+            elements.currentUnitSymbol.textContent = `°${unit}`;
+            elements.feelsLikeTemp.textContent = convertTemp(current.feelsLike, unit);
+            elements.tempMax.textContent = convertTemp(current.tempMax, unit);
+            elements.tempMin.textContent = convertTemp(current.tempMin, unit);
+
+            // 気象詳細グリッド描画
+            elements.humidity.textContent = `${current.humidity} %`;
+            elements.windSpeed.textContent = `${current.windSpeed} m/s`;
+
+            // 7日間天気予報描画
+            elements.forecastList.innerHTML = "";
+            weatherData.daily.slice(0, 7).forEach((day, index) => {
+                const dayMeta = getWeatherMeta(day.weatherCode);
+                const dateObj = formatDateString(day.date);
+                const isToday = index === 0;
+
+                const card = document.createElement("div");
+                card.className = `p-3 rounded-xl flex flex-col items-center justify-between text-center transition-all ${
+                    isToday ? 'bg-blue-50 border-2 border-blue-200 shadow-sm' : 'bg-slate-50 border border-slate-100'
+                }`;
+
+                card.innerHTML = `
+                    <p class="text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-600'}">
+                        ${isToday ? '今日' : dateObj.short}
+                    </p>
+                    <div class="text-3xl my-2 select-none">${dayMeta.icon}</div>
+                    <p class="text-xs text-slate-500 mb-1 font-medium">${dayMeta.label}</p>
+                    <div class="text-xs font-bold space-x-1">
+                        <span class="text-slate-800">${convertTemp(day.tempMax, unit)}°</span>
+                        <span class="text-slate-400">/</span>
+                        <span class="text-slate-500 font-normal">${convertTemp(day.tempMin, unit)}°</span>
+                    </div>
+                `;
+                elements.forecastList.appendChild(card);
+            });
+
+            // お気に入りバー更新
+            renderFavoritesUI();
+
+            // 単位切替ボタンのアクティブ表示切替
+            if (unit === 'C') {
+                elements.btnUnitC.className = "px-3 py-1 rounded-md text-sm font-semibold transition-all bg-white text-slate-800 shadow-sm";
+                elements.btnUnitF.className = "px-3 py-1 rounded-md text-sm font-semibold transition-all text-slate-600 hover:text-slate-900";
+            } else {
+                elements.btnUnitF.className = "px-3 py-1 rounded-md text-sm font-semibold transition-all bg-white text-slate-800 shadow-sm";
+                elements.btnUnitC.className = "px-3 py-1 rounded-md text-sm font-semibold transition-all text-slate-600 hover:text-slate-900";
+            }
+        }
+
+        function renderFavoritesUI() {
+            elements.favoritesList.innerHTML = "";
+            
+            if (state.favorites.length === 0) {
+                const emptySpan = document.createElement("span");
+                emptySpan.className = "text-xs text-slate-400 italic";
+                emptySpan.textContent = "登録なし";
+                elements.favoritesList.appendChild(emptySpan);
+            } else {
+                state.favorites.forEach(city => {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "px-3 py-1 rounded-full text-xs font-medium bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors flex items-center gap-1";
+                    btn.textContent = city.name;
+                    btn.addEventListener("click", () => loadWeatherForCity(city));
+                    elements.favoritesList.appendChild(btn);
+                });
+            }
+
+            const isFav = state.favorites.some(f => f.name === state.currentCity.name);
+            elements.btnToggleFavorite.classList.remove("hidden");
+
+            if (isFav) {
+                elements.favStarIcon.textContent = "★";
+                elements.favBtnText.textContent = "登録解除";
+                elements.btnToggleFavorite.className = "ml-auto text-xs px-3 py-1.5 rounded-full border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors flex items-center gap-1";
+            } else {
+                elements.favStarIcon.textContent = "☆";
+                elements.favBtnText.textContent = "お気に入りに追加";
+                elements.btnToggleFavorite.className = "ml-auto text-xs px-3 py-1.5 rounded-full border border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 font-medium transition-colors flex items-center gap-1";
+            }
+        }
+
+        // --- 9. イベントリスナー定義 ---
+
+        function setupEventListeners() {
+            // 検索フォーム
+            elements.searchForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                handleSearch(elements.searchInput.value);
+            });
+
+            // お気に入り登録/解除
+            elements.btnToggleFavorite.addEventListener("click", () => {
+                const currentName = state.currentCity.name;
+                const index = state.favorites.findIndex(f => f.name === currentName);
+
+                if (index >= 0) {
+                    state.favorites.splice(index, 1);
+                } else {
+                    if (state.favorites.length >= CONFIG.MAX_FAVORITES) {
+                        alert(`お気に入りは最大${CONFIG.MAX_FAVORITES}件まで登録できます。`);
+                        return;
+                    }
+                    state.favorites.push({ ...state.currentCity });
+                }
+                saveFavorites();
+                renderUI();
+            });
+
+            // 単位切り替えボタン (℃)
+            elements.btnUnitC.addEventListener("click", () => {
+                if (state.unit !== 'C') {
+                    state.unit = 'C';
+                    saveUnitPreference();
+                    renderUI();
+                }
+            });
+
+            // 単位切り替えボタン (℉)
+            elements.btnUnitF.addEventListener("click", () => {
+                if (state.unit !== 'F') {
+                    state.unit = 'F';
+                    saveUnitPreference();
+                    renderUI();
+                }
+            });
+        }
+
+        // --- 10. アプリケーション初期化 ---
+
+        async function initApp() {
+            loadStorageData();
+            setupEventListeners();
+            await loadWeatherForCity(CONFIG.DEFAULT_CITY);
+        }
+
+        document.addEventListener("DOMContentLoaded", initApp);
+    </script>
+</body>
+</html>
